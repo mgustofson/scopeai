@@ -1,0 +1,8 @@
+{
+  "projectGoal": "Describe the thing you're building in one sentence",
+  "taskType": "feature",
+  "explorationLevel": "medium",
+  "budgetPosture": "balanced",
+  "workMode": "solo",
+  "blockOnSevere": false
+}

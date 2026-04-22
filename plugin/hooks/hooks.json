@@ -1,0 +1,13 @@
+{
+  "UserPromptSubmit": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/scope-hook.mjs",
+          "timeout": 15
+        }
+      ]
+    }
+  ]
+}

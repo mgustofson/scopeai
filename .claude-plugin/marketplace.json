@@ -1,0 +1,27 @@
+{
+  "name": "scope",
+  "owner": {
+    "name": "Max Gustofson",
+    "email": "max.gustofson@gmail.com"
+  },
+  "metadata": {
+    "description": "Budget guardrails and scope management for Claude Code.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "scope",
+      "source": "./plugin",
+      "description": "Classifies prompt risk, detects scope drift, and injects token-efficient working guidance on every turn.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Max Gustofson",
+        "email": "max.gustofson@gmail.com"
+      },
+      "homepage": "https://github.com/mgustofson/scope",
+      "repository": "https://github.com/mgustofson/scope",
+      "license": "MIT",
+      "keywords": ["budget", "guardrails", "cost", "risk", "productivity"]
+    }
+  ]
+}

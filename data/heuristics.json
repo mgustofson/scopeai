@@ -1,0 +1,36 @@
+{
+  "taskComplexity": {
+    "simple": {
+      "baseInputTokens": 1500,
+      "baseOutputTokens": 500,
+      "description": "Minor modifications, single-file scripts, basic UI components."
+    },
+    "medium": {
+      "baseInputTokens": 5000,
+      "baseOutputTokens": 2000,
+      "description": "Multi-file features, standard API endpoints, context-aware bug fixes."
+    },
+    "complex": {
+      "baseInputTokens": 15000,
+      "baseOutputTokens": 4000,
+      "description": "Architectural changes, full frameworks, complex multi-step pipelines requiring extensive context."
+    }
+  },
+  "tierMultipliers": {
+    "lean": {
+      "retries": 1.1,
+      "contextPumping": 1.0,
+      "defaultModel": "claude-3-haiku"
+    },
+    "standard": {
+      "retries": 1.5,
+      "contextPumping": 1.5,
+      "defaultModel": "claude-3-5-sonnet"
+    },
+    "premium": {
+      "retries": 2.5,
+      "contextPumping": 3.0,
+      "defaultModel": "claude-3-opus"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "scope",
+  "version": "0.1.0",
+  "description": "Budget guardrails for Claude Code. Classifies prompt risk, detects scope drift, and injects working guidance on every turn.",
+  "author": {
+    "name": "Max Gustofson",
+    "email": "max.gustofson@gmail.com",
+    "url": "https://github.com/mgustofson"
+  },
+  "homepage": "https://github.com/mgustofson/scope",
+  "repository": "https://github.com/mgustofson/scope",
+  "license": "MIT",
+  "keywords": ["budget", "guardrails", "cost", "risk", "hooks", "productivity"]
+}

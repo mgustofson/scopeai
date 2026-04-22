@@ -1,0 +1,32 @@
+{
+  "models": {
+    "claude-3-haiku": {
+      "name": "Claude 3 Haiku",
+      "provider": "Anthropic",
+      "input_cost_per_mk": 0.25,
+      "output_cost_per_mk": 1.25,
+      "description": "Fast and light, recommended for simple refactoring and data extraction."
+    },
+    "claude-3-sonnet": {
+      "name": "Claude 3 Sonnet",
+      "provider": "Anthropic",
+      "input_cost_per_mk": 3.00,
+      "output_cost_per_mk": 15.00,
+      "description": "Balanced model, good for standard generation workflows."
+    },
+    "claude-3-opus": {
+      "name": "Claude 3 Opus",
+      "provider": "Anthropic",
+      "input_cost_per_mk": 15.00,
+      "output_cost_per_mk": 75.00,
+      "description": "Powerful, use for complex architectural logic and first-draft reasoning."
+    },
+    "claude-3-5-sonnet": {
+      "name": "Claude 3.5 Sonnet",
+      "provider": "Anthropic",
+      "input_cost_per_mk": 3.00,
+      "output_cost_per_mk": 15.00,
+      "description": "State-of-the-art coding and reasoning."
+    }
+  }
+}
