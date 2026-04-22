@@ -7,8 +7,8 @@
     "email": "max.gustofson@gmail.com",
     "url": "https://github.com/mgustofson"
   },
-  "homepage": "https://github.com/mgustofson/scope",
-  "repository": "https://github.com/mgustofson/scope",
+  "homepage": "https://github.com/mgustofson/scopeai",
+  "repository": "https://github.com/mgustofson/scopeai",
   "license": "MIT",
   "keywords": ["budget", "guardrails", "cost", "risk", "hooks", "productivity"]
 }

@@ -8,7 +8,7 @@ Built for solo builders and small teams who start fast and want to stay in contr
 
 ```sh
 # 1. Add the Scope marketplace (one-time)
-/plugin marketplace add mgustofson/scope
+/plugin marketplace add mgustofson/scopeai
 
 # 2. Install the plugin
 /plugin install scope@scope
