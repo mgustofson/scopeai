@@ -1,4 +1,4 @@
-import { MODELS, TASK_COMPLEXITY, TIER_MULTIPLIERS, ModelId, ComplexityLevel, TierLevel } from './constants';
+import { ModelData, TASK_COMPLEXITY, TIER_MULTIPLIERS, ModelId, ComplexityLevel, TierLevel, StrategyLevel } from './constants';
 
 export interface ProjectTask {
   id: string;
@@ -14,14 +14,27 @@ export interface EstimatedTask {
   outputTokens: number;
   cost: number;
   appliedModel: ModelId;
+  estimatedTurns: number;
+  isOptimal: boolean;
+  reasoningScore: number;
+  latencyScore: number;
 }
 
-export interface TierEstimateSummary {
-  tier: TierLevel;
+export interface TimeEstimates {
+  free: string;
+  pro: string;
+  api: string;
+}
+
+export interface StrategyEstimateSummary {
+  strategy: StrategyLevel;
   totalInputTokens: number;
   totalOutputTokens: number;
   totalCost: number;
-  modelUsed: ModelId;
+  totalTurns: number;
+  timeEstimates: TimeEstimates;
+  avgLatency: number;
+  avgConfidence: number;
   tasks: EstimatedTask[];
 }
 
@@ -33,136 +46,206 @@ export interface OptimizationRecommendation {
   applyOverrides: (tasks: ProjectTask[]) => ProjectTask[];
 }
 
-export function calculateTierEstimate(tasks: ProjectTask[], tier: TierLevel): TierEstimateSummary {
-  const multipliers = TIER_MULTIPLIERS[tier];
+export function getTimeEstimates(totalTurns: number, avgLatency: number = 3): TimeEstimates {
+  // Latency multiplier: scale the time based on model speed (1-5)
+  const latencyMult = avgLatency / 2.5; 
+  
+  const getLabel = (turns: number, limitPerBlock: number) => {
+    const adjustedTurns = turns * latencyMult;
+    const blocks = Math.ceil(adjustedTurns / limitPerBlock);
+    if (blocks <= 1) return "Under 5 hours";
+    if (blocks === 2) return "1-2 Days";
+    if (blocks <= 4) return "2-3 Days";
+    if (blocks <= 10) return "1-2 Weeks";
+    return "2+ Weeks";
+  };
+
+  return {
+    free: getLabel(totalTurns, 30),
+    pro: getLabel(totalTurns, 150),
+    api: "Instant (API speed)"
+  };
+}
+
+export function findOptimalModel(
+  taskComplexity: ComplexityLevel, 
+  strategy: StrategyLevel, 
+  models: Record<string, ModelData>,
+  providerPreference: 'All' | 'Anthropic' | 'OpenAI' = 'All'
+): string {
+  const complexity = TASK_COMPLEXITY[taskComplexity];
+  const allModels = Object.entries(models);
+  
+  const candidateModels = allModels.filter(([id, data]) => {
+    if (providerPreference !== 'All' && data.provider !== providerPreference) return false;
+    // Must meet min reasoning floor
+    return data.reasoning_tier >= complexity.min_reasoning_tier;
+  });
+
+  if (candidateModels.length === 0) {
+    // No models meet the reasoning floor — relax the filter and pick any available model
+    const anyModel = allModels.length > 0 ? allModels.sort((a, b) => b[1].reasoning_tier - a[1].reasoning_tier)[0][0] : 'anthropic/claude-sonnet-4.6';
+    return anyModel;
+  }
+
+  if (strategy === 'cost') {
+    // Return the cheapest model that meets the floor
+    return candidateModels.sort((a, b) => a[1].input_cost_per_mk - b[1].input_cost_per_mk)[0][0];
+  }
+
+  if (strategy === 'quality') {
+    // Return the most powerful model
+    return candidateModels.sort((a, b) => b[1].reasoning_tier - a[1].reasoning_tier)[0][0];
+  }
+
+  // Balanced strategy:
+  // For Simple: cheapest. For Medium: mid-range. For Complex: highest tier.
+  if (taskComplexity === 'simple') {
+    return candidateModels.sort((a, b) => a[1].input_cost_per_mk - b[1].input_cost_per_mk)[0][0];
+  }
+  
+  if (taskComplexity === 'medium') {
+    // Prefer tier 7-8 models (Sonnet, GPT-4o)
+    const midModels = candidateModels.filter(m => m[1].reasoning_tier >= 7 && m[1].reasoning_tier <= 8);
+    return midModels.length > 0 ? midModels[0][0] : candidateModels[0][0];
+  }
+
+  // Complex tasks in balanced mode get the top-tier models
+  return candidateModels.sort((a, b) => b[1].reasoning_tier - a[1].reasoning_tier)[0][0];
+}
+
+export function calculateStrategyEstimate(
+  tasks: ProjectTask[], 
+  strategy: StrategyLevel, 
+  providerPreference: 'All' | 'Anthropic' | 'OpenAI' = 'All', 
+  models: Record<string, ModelData>
+): StrategyEstimateSummary {
+  // Consolidate Posture into Strategy:
+  // cost -> lean, balanced -> standard, quality -> premium
+  const posture: TierLevel = strategy === 'cost' ? 'lean' : strategy === 'quality' ? 'premium' : 'standard';
+  const multipliers = TIER_MULTIPLIERS[posture];
   
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
   let totalCost = 0;
+  let totalTurns = 0;
+  let totalLatency = 0;
+  let totalReasoning = 0;
   
   const estimatedTasks = tasks.map(task => {
     const complexityStats = TASK_COMPLEXITY[task.complexity];
-    const appliedModelId = task.overrideModel || multipliers.defaultModel;
-    const model = MODELS[appliedModelId];
+    const optimalModelId = findOptimalModel(task.complexity, strategy, models, providerPreference);
+    // If the task has a stale override that no longer exists in the model map, discard it
+    const appliedModelId = (task.overrideModel && models[task.overrideModel]) ? task.overrideModel : optimalModelId;
+    const model = models[appliedModelId];
+    
+    if (!model) {
+      // Absolute emergency — should never happen with DEFAULT_MODELS populated
+      return {
+        task,
+        inputTokens: 0,
+        outputTokens: 0,
+        cost: 0,
+        appliedModel: appliedModelId,
+        estimatedTurns: 0,
+        isOptimal: false,
+        reasoningScore: 0,
+        latencyScore: 0
+      };
+    }
+    
     const pumping = task.overrideContextPumping ?? multipliers.contextPumping;
+    const estimatedTurns = Math.ceil((complexityStats as any).baseTurns * multipliers.retries);
+    const avgContextPerTurn = (complexityStats as any).contextPerTurn * pumping;
     
-    // Calculate raw tokens with tier pumping rules
-    const rawInputTokens = Math.ceil(complexityStats.baseInputTokens * pumping * multipliers.retries);
-    const rawOutputTokens = Math.ceil(complexityStats.baseOutputTokens * multipliers.retries);
+    const rawInputTokens = Math.ceil(avgContextPerTurn * estimatedTurns);
+    const rawOutputTokens = Math.ceil((complexityStats as any).outputPerTurn * estimatedTurns);
     
-    // Accumulate globals
     totalInputTokens += rawInputTokens;
     totalOutputTokens += rawOutputTokens;
     
-    // Calculate cost in dollars (per million tokens -> mk)
     const inputCost = (rawInputTokens / 1_000_000) * model.input_cost_per_mk;
     const outputCost = (rawOutputTokens / 1_000_000) * model.output_cost_per_mk;
-    const taskTotalCost = inputCost + outputCost;
+    const taskTotalCost = Math.max(0, inputCost + outputCost);
     
     totalCost += taskTotalCost;
+    totalTurns += estimatedTurns;
+    totalLatency += model.latency_score;
+    totalReasoning += model.reasoning_tier;
     
     return {
       task,
       inputTokens: rawInputTokens,
       outputTokens: rawOutputTokens,
       cost: taskTotalCost,
-      appliedModel: appliedModelId
+      appliedModel: appliedModelId,
+      estimatedTurns,
+      isOptimal: appliedModelId === optimalModelId,
+      reasoningScore: model.reasoning_tier,
+      latencyScore: model.latency_score
     };
   });
 
+  const avgLatency = tasks.length > 0 ? totalLatency / tasks.length : 1;
+  const avgConfidence = tasks.length > 0 ? (totalReasoning / tasks.length) * 10 : 0;
+
   return {
-    tier,
+    strategy,
     totalInputTokens,
     totalOutputTokens,
     totalCost,
-    modelUsed: multipliers.defaultModel,
+    totalTurns,
+    timeEstimates: getTimeEstimates(totalTurns, avgLatency),
+    avgLatency,
+    avgConfidence,
     tasks: estimatedTasks
   };
 }
 
-export function generateAllTiers(tasks: ProjectTask[]): Record<TierLevel, TierEstimateSummary> {
+export function generateAllStrategies(
+  tasks: ProjectTask[], 
+  providerPreference: 'All' | 'Anthropic' | 'OpenAI' = 'All', 
+  models: Record<string, ModelData>
+): Record<StrategyLevel, StrategyEstimateSummary> {
   return {
-    lean: calculateTierEstimate(tasks, 'lean'),
-    standard: calculateTierEstimate(tasks, 'standard'),
-    premium: calculateTierEstimate(tasks, 'premium'),
+    cost: calculateStrategyEstimate(tasks, 'cost', providerPreference, models),
+    balanced: calculateStrategyEstimate(tasks, 'balanced', providerPreference, models),
+    quality: calculateStrategyEstimate(tasks, 'quality', providerPreference, models),
   };
 }
 
-export function generateRecommendations(tasks: ProjectTask[], currentTier: TierLevel, currentEstimate: TierEstimateSummary): OptimizationRecommendation[] {
+export function generateRecommendations(
+  tasks: ProjectTask[], 
+  currentStrategy: StrategyLevel, 
+  currentEstimate: StrategyEstimateSummary, 
+  models: Record<string, ModelData>
+): OptimizationRecommendation[] {
   const recommendations: OptimizationRecommendation[] = [];
-  
   if (tasks.length === 0) return recommendations;
   
-  const multipliers = TIER_MULTIPLIERS[currentTier];
+  const subOptimalTasks = currentEstimate.tasks.filter(t => !t.isOptimal);
   
-  // Rule 1: Downgrade Simple Tasks to Haiku
-  const simpleTasksUsingExpensiveModel = tasks.filter(t => 
-    t.complexity === 'simple' && 
-    (t.overrideModel || multipliers.defaultModel) !== 'claude-3-haiku'
-  );
-  
-  if (simpleTasksUsingExpensiveModel.length > 0) {
-    // Calculate savings
-    let savings = 0;
-    simpleTasksUsingExpensiveModel.forEach(t => {
-      const currentModelId = t.overrideModel || multipliers.defaultModel;
-      const currentModel = MODELS[currentModelId];
-      const haiku = MODELS['claude-3-haiku'];
-      
-      const pumping = t.overrideContextPumping ?? multipliers.contextPumping;
-      const stats = TASK_COMPLEXITY[t.complexity];
-      const inTokens = Math.ceil(stats.baseInputTokens * pumping * multipliers.retries);
-      const outTokens = Math.ceil(stats.baseOutputTokens * multipliers.retries);
-      
-      const currentCost = ((inTokens / 1_000_000) * currentModel.input_cost_per_mk) + ((outTokens / 1_000_000) * currentModel.output_cost_per_mk);
-      const newCost = ((inTokens / 1_000_000) * haiku.input_cost_per_mk) + ((outTokens / 1_000_000) * haiku.output_cost_per_mk);
-      
-      savings += (currentCost - newCost);
-    });
-    
-    if (savings > 0) {
-      recommendations.push({
-        id: 'downgrade-simple-haiku',
-        title: 'Route simple tasks to Haiku',
-        description: `You have ${simpleTasksUsingExpensiveModel.length} simple task(s) using a heavier model. Haiku is more than capable for basic parsing and will reduce costs.`,
-        potentialSavings: savings,
-        applyOverrides: (currentTasks) => currentTasks.map(t => 
-          t.complexity === 'simple' ? { ...t, overrideModel: 'claude-3-haiku' } : t
-        )
-      });
-    }
-  }
-
-  // Rule 2: Use 3.5 Sonnet instead of Opus for Premium tier
-  if (currentTier === 'premium') {
-    const tasksUsingOpus = tasks.filter(t => (t.overrideModel || multipliers.defaultModel) === 'claude-3-opus');
-    if (tasksUsingOpus.length > 0) {
-      let savings = 0;
-      tasksUsingOpus.forEach(t => {
-        const currentModel = MODELS['claude-3-opus'];
-        const sonnet35 = MODELS['claude-3-5-sonnet'];
-        const pumping = t.overrideContextPumping ?? multipliers.contextPumping;
-        const stats = TASK_COMPLEXITY[t.complexity];
-        const inTokens = Math.ceil(stats.baseInputTokens * pumping * multipliers.retries);
-        const outTokens = Math.ceil(stats.baseOutputTokens * multipliers.retries);
-        
-        const currentCost = ((inTokens / 1_000_000) * currentModel.input_cost_per_mk) + ((outTokens / 1_000_000) * currentModel.output_cost_per_mk);
-        const newCost = ((inTokens / 1_000_000) * sonnet35.input_cost_per_mk) + ((outTokens / 1_000_000) * sonnet35.output_cost_per_mk);
-        
-        savings += (currentCost - newCost);
-      });
-      
-      if (savings > 0) {
-        recommendations.push({
-          id: 'swap-opus-for-sonnet35',
-          title: 'Swap Opus for 3.5 Sonnet',
-          description: 'Claude 3.5 Sonnet beats Opus in coding benchmarks but costs 80% less. Highly recommended.',
-          potentialSavings: savings,
-          applyOverrides: (currentTasks) => currentTasks.map(t => 
-            (t.overrideModel || multipliers.defaultModel) === 'claude-3-opus' ? { ...t, overrideModel: 'claude-3-5-sonnet' } : t
-          )
-        });
+  if (subOptimalTasks.length > 0) {
+    let totalPotentialSavings = 0;
+    subOptimalTasks.forEach(t => {
+      const optimalId = findOptimalModel(t.task.complexity, currentStrategy, models);
+      const optimalModel = models[optimalId];
+      if (optimalModel) {
+        const optimalCost = ((t.inputTokens / 1_000_000) * optimalModel.input_cost_per_mk) + ((t.outputTokens / 1_000_000) * optimalModel.output_cost_per_mk);
+        if (t.cost > optimalCost) {
+          totalPotentialSavings += (t.cost - optimalCost);
+        }
       }
+    });
+
+    if (totalPotentialSavings > 0.01) {
+      recommendations.push({
+        id: 'apply_optimal_routing',
+        title: 'Apply Optimal Model Routing',
+        description: `You have ${subOptimalTasks.length} tasks using non-optimal models. Switching to the recommended models for your ${currentStrategy} strategy will save tokens.`,
+        potentialSavings: totalPotentialSavings,
+        applyOverrides: (tks) => tks.map(t => ({ ...t, overrideModel: undefined }))
+      });
     }
   }
 

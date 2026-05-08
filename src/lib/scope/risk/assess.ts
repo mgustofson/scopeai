@@ -40,24 +40,34 @@ export function assessRisk(session: SessionInput, prompt: PromptContext): RiskAs
     recommendations.push("Narrow attached context to only the files you'll change");
   }
 
-  // Iteration — is this prompt exploratory/underspecified?
+  // Iteration / Cost — is this prompt exploratory/underspecified or just massive?
   const iterHits = hits(text, ITERATION_KEYWORDS);
   let iterScore = iterHits.length;
   if (session.explorationLevel === 'high') iterScore += 1;
+  
+  // High-sensitivity Length heuristic (surrogate for token burn)
+  if (text.length > 150) iterScore += 2;
+  else if (text.length > 50) iterScore += 1;
+
   const iterationRisk = fromScore(iterScore);
   if (iterationRisk !== 'low') {
     reasons.push(
       iterHits.length
         ? `Exploratory language: ${iterHits.join(', ')}`
-        : 'Session marked as high-exploration',
+        : text.length > 150 
+          ? 'Massive prompt length (high token burn)' 
+          : 'High token payload'
     );
-    recommendations.push('Commit to one concrete deliverable for this turn');
+    recommendations.push('Consider breaking this prompt down into smaller steps');
   }
 
   // Branching — side-quests + broad-scope keywords (the two ways work fans out).
   const branchHits = hits(text, BRANCH_KEYWORDS);
   const breadthHits = hits(text, BREADTH_KEYWORDS);
-  const branchScore = branchHits.length + breadthHits.length;
+  let branchScore = branchHits.length + breadthHits.length;
+  
+  if (text.length > 100) branchScore += 1;
+
   const branchingRisk = fromScore(branchScore);
   if (branchingRisk !== 'low') {
     if (branchHits.length) reasons.push(`Side-quest language: ${branchHits.join(', ')}`);
