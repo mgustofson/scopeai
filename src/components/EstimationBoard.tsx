@@ -189,23 +189,23 @@ export default function EstimationBoard() {
                 onValueChange={(val) => setSelectedStrategy(strategies[val as number])}
                 className="w-full cursor-pointer"
               />
-              <div className="flex justify-between text-[12px] font-medium text-muted-foreground mt-4 relative">
-                <div className="w-1/3 flex justify-start">
-                  <button onClick={() => setSelectedStrategy('cost')} className={`transition-all duration-200 cursor-pointer px-3 py-1.5 -ml-3 rounded-md flex items-center gap-1.5 active:scale-95 ${selectedStrategy === 'cost' ? 'text-foreground bg-muted' : 'hover:text-foreground hover:bg-muted/50'}`}>
-                    <PiggyBank className="w-3.5 h-3.5" /> Cost
-                    {suggestedStrategy === 'cost' && <span className="ml-1 text-[9px] font-semibold tracking-wider uppercase bg-primary/10 text-primary px-1.5 py-0.5 rounded">Suggested</span>}
+              <div className="flex flex-wrap justify-between text-[12px] font-medium text-muted-foreground mt-4 relative gap-2">
+                <div className="flex-1 flex justify-start min-w-0">
+                  <button onClick={() => setSelectedStrategy('cost')} className={`transition-all duration-200 cursor-pointer px-2 md:px-3 py-1.5 -ml-2 md:-ml-3 rounded-md flex items-center gap-1 md:gap-1.5 active:scale-95 text-[11px] md:text-[12px] ${selectedStrategy === 'cost' ? 'text-foreground bg-muted' : 'hover:text-foreground hover:bg-muted/50'}`}>
+                    <PiggyBank className="w-3.5 h-3.5 shrink-0" /> Cost
+                    {suggestedStrategy === 'cost' && <span className="ml-1 text-[9px] font-semibold tracking-wider uppercase bg-primary/10 text-primary px-1.5 py-0.5 rounded hidden md:inline">Suggested</span>}
                   </button>
                 </div>
-                <div className="w-1/3 flex justify-center">
-                  <button onClick={() => setSelectedStrategy('balanced')} className={`transition-all duration-200 cursor-pointer px-3 py-1.5 rounded-md flex items-center gap-1.5 active:scale-95 ${selectedStrategy === 'balanced' ? 'text-foreground bg-muted' : 'hover:text-foreground hover:bg-muted/50'}`}>
-                    <Scale className="w-3.5 h-3.5" /> Balanced
-                    {suggestedStrategy === 'balanced' && <span className="ml-1 text-[9px] font-semibold tracking-wider uppercase bg-primary/10 text-primary px-1.5 py-0.5 rounded">Suggested</span>}
+                <div className="flex-1 flex justify-center min-w-0">
+                  <button onClick={() => setSelectedStrategy('balanced')} className={`transition-all duration-200 cursor-pointer px-2 md:px-3 py-1.5 rounded-md flex items-center gap-1 md:gap-1.5 active:scale-95 text-[11px] md:text-[12px] ${selectedStrategy === 'balanced' ? 'text-foreground bg-muted' : 'hover:text-foreground hover:bg-muted/50'}`}>
+                    <Scale className="w-3.5 h-3.5 shrink-0" /> Balanced
+                    {suggestedStrategy === 'balanced' && <span className="ml-1 text-[9px] font-semibold tracking-wider uppercase bg-primary/10 text-primary px-1.5 py-0.5 rounded hidden md:inline">Suggested</span>}
                   </button>
                 </div>
-                <div className="w-1/3 flex justify-end">
-                  <button onClick={() => setSelectedStrategy('quality')} className={`transition-all duration-200 cursor-pointer px-3 py-1.5 -mr-3 rounded-md flex items-center gap-1.5 active:scale-95 ${selectedStrategy === 'quality' ? 'text-foreground bg-muted' : 'hover:text-foreground hover:bg-muted/50'}`}>
-                    <Sparkles className="w-3.5 h-3.5" /> Quality
-                    {suggestedStrategy === 'quality' && <span className="ml-1 text-[9px] font-semibold tracking-wider uppercase bg-primary/10 text-primary px-1.5 py-0.5 rounded">Suggested</span>}
+                <div className="flex-1 flex justify-end min-w-0">
+                  <button onClick={() => setSelectedStrategy('quality')} className={`transition-all duration-200 cursor-pointer px-2 md:px-3 py-1.5 -mr-2 md:-mr-3 rounded-md flex items-center gap-1 md:gap-1.5 active:scale-95 text-[11px] md:text-[12px] ${selectedStrategy === 'quality' ? 'text-foreground bg-muted' : 'hover:text-foreground hover:bg-muted/50'}`}>
+                    <Sparkles className="w-3.5 h-3.5 shrink-0" /> Quality
+                    {suggestedStrategy === 'quality' && <span className="ml-1 text-[9px] font-semibold tracking-wider uppercase bg-primary/10 text-primary px-1.5 py-0.5 rounded hidden md:inline">Suggested</span>}
                   </button>
                 </div>
               </div>
@@ -260,8 +260,8 @@ export default function EstimationBoard() {
           </div>
         </div>
         
-        <div className="p-0">
-          <Table className="table-fixed w-full">
+        <div className="p-0 overflow-x-auto">
+          <Table className="table-fixed w-full min-w-[600px]">
             <TableHeader>
               <TableRow className="border-b border-border hover:bg-transparent">
                 <TableHead className="w-[40%] text-[12px] font-medium text-muted-foreground h-12 pl-4 md:pl-6">
